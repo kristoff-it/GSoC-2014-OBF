@@ -1,3 +1,4 @@
 name: Your New Jekyll Site
 markdown: kramdown
 pygments: true
+baseurl: /GSoC-2014-OBF
