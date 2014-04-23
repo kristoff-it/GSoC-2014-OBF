@@ -1,4 +1,5 @@
 name: Your New Jekyll Site
-markdown: kramdown
+markdown: redcarpet
 pygments: true
+paginate: 10
 baseurl: /GSoC-2014-OBF
