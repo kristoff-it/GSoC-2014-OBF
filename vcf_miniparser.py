@@ -3,13 +3,13 @@ from collections import namedtuple
 def parse_together(filestreams):
 	parsers = (parse(f) for f in filestreams)
 
-	#headers
+	## HEADERS ##
 	yield [next(p, None) for p in parsers]
 
-	#sample names
+	## SAMPLE NAMES ##
 	yield [next(p, None) for p in parsers]
 
-	#rows
+	## RECORDS
 	line_buffer = [next(p, None) for p in parsers]
 	exhausted_parsers = sum((1 if line is None else 0 for line in line_buffer))
 	while exhausted_parsers < len(parsers):
@@ -110,9 +110,7 @@ def parse_header(line, headers):
 				assert False
 
 		headers.infos[ID] = (Number, Type, Description)
-
-
-
+		return
 
 	if line.startswith("##FORMAT"):
 
@@ -139,6 +137,7 @@ def parse_header(line, headers):
 				assert False
 
 		headers.formats[ID] = (Number, Type, Description)
+		return
 
 	if line.startswith("##FILTER"):
 
@@ -161,7 +160,7 @@ def parse_header(line, headers):
 				assert False
 
 		headers.filters[ID] = (Number, Description)
-
+		return
 
 	if line.startswith("##ALT"):
 
@@ -184,6 +183,7 @@ def parse_header(line, headers):
 				assert False
 
 		headers.alts[ID] = (Number, Description)
+		return
 
 
 	# DEFAULT:
@@ -221,5 +221,5 @@ if __name__ == '__main__':
 		stop_time = time.clock()
 		rps = 1/(stop_time - start_time + 0.000001)
 		print "\r", niter, '@', rps, 'records/second',
-		start_time = time.clock()
 		niter += 1
+		start_time = time.clock()
