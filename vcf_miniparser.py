@@ -1,47 +1,5 @@
 from collections import namedtuple
 
-def parse_together(filestreams):
-	parsers = (parse(f) for f in filestreams)
-
-	## HEADERS ##
-	yield [next(p, None) for p in parsers]
-
-	## SAMPLE NAMES ##
-	yield [next(p, None) for p in parsers]
-
-	## RECORDS
-	line_buffer = [next(p, None) for p in parsers]
-	exhausted_parsers = sum((1 if line is None else 0 for line in line_buffer))
-	while exhausted_parsers < len(parsers):
-		selected_lines = []
-		selected_lines_ids = []
-		lowest_chrom = lowest_pos = float('inf')
-
-		for i, line in enumerate(line_buffer):
-			if line is None:
-				continue
-
-			if (line.CHROM == lowest_chrom and line.POS < lowest_pos) \
-			    or line.CHROM < lowest_chrom:
-				selected_lines = [line]
-				selected_lines_ids = [i]
-				lowest_chrom = line.CHROM
-				lowest_pos = line.POS
-
-			elif line.CHROM == lowest_chrom and line.POS == lowest_pos:
-				selected_lines.append(line)
-				selected_lines_ids.append(i)
-
-		for line_id in selected_lines_ids:
-			new_line = next(parsers[line_id], None)
-			if new_line is None:
-				exhausted_parsers += 1
-			line_buffer[line_id] = new_line
-
-		yield selected_lines
-
-
-
 
 def parse(filestream):
 	line = filestream.readline()
@@ -82,7 +40,12 @@ def parse(filestream):
 		Record = namedtuple("Record", "CHROM POS ID REF ALT QUAL FILTER INFO FORMAT samples") 
 
 		for line in filestream:
-			yield parse_line(line, Record=Record)
+			try:
+				yield parse_line(line, Record=Record)
+			except:
+				print "ZOMG"
+				break
+
 
 def parse_header(line, headers):
 	if line.startswith("##INFO"):
@@ -109,7 +72,7 @@ def parse_header(line, headers):
 				print key
 				assert False
 
-		headers.infos[ID] = (Number, Type, Description)
+		headers.infos[ID] = [Number, Type, Description]
 		return
 
 	if line.startswith("##FORMAT"):
@@ -136,7 +99,7 @@ def parse_header(line, headers):
 				print key
 				assert False
 
-		headers.formats[ID] = (Number, Type, Description)
+		headers.formats[ID] = [Number, Type, Description]
 		return
 
 	if line.startswith("##FILTER"):
@@ -159,7 +122,7 @@ def parse_header(line, headers):
 				print key
 				assert False
 
-		headers.filters[ID] = (Number, Description)
+		headers.filters[ID] = [Number, Description]
 		return
 
 	if line.startswith("##ALT"):
@@ -182,7 +145,7 @@ def parse_header(line, headers):
 				print key
 				assert False
 
-		headers.alts[ID] = (Number, Description)
+		headers.alts[ID] = [Number, Description]
 		return
 
 
@@ -209,17 +172,64 @@ def parse_line(line, Record):
 				)
 
 
+### PARSE & WALK TOGETHER ###
+
+def parse_together(filestreams):
+	parsers = tuple(parse(f) for f in filestreams)
+
+	## HEADERS ##
+	yield list(next(p, None) for p in parsers)
+
+	## SAMPLE NAMES ##
+	yield list(next(p, None) for p in parsers)
+
+
+	## RECORDS
+	line_buffer = list(next(p, None) for p in parsers)
+	exhausted_parsers = sum((1 if line is None else 0 for line in line_buffer))
+	while exhausted_parsers < len(filestreams):
+		selected_lines = []
+		selected_lines_ids = []
+		lowest_chrom = lowest_pos = 'ZZZZZZZZZ' #float('inf')
+
+		for i, line in enumerate(line_buffer):
+			# a better approach is possible ^^^^
+			if line is None:
+				continue
+
+			if (line.CHROM == lowest_chrom and line.POS < lowest_pos) \
+			    or line.CHROM < lowest_chrom:
+				selected_lines = [line]
+				selected_lines_ids = [i]
+				lowest_chrom = line.CHROM
+				lowest_pos = line.POS
+
+			elif line.CHROM == lowest_chrom and line.POS == lowest_pos:
+				selected_lines.append(line)
+				selected_lines_ids.append(i)
+
+		for line_id in selected_lines_ids:
+			new_line = next(parsers[line_id], None)
+			if new_line is None:
+				exhausted_parsers += 1
+			line_buffer[line_id] = new_line
+
+		yield zip(selected_lines_ids, selected_lines)
+
+
+
+
+
 
 
 if __name__ == '__main__':
 	import gzip, time
-	vcf = open('test/minivcf.vcf')
-	a = parse(vcf)
+	vcf = open('/Users/kappa/github/GSoC-2014-OBF/test/minivcf.vcf', 'r')
+	a = parse_together([vcf])
 	start_time = time.clock()
 	niter = 0
 	for x in a:
-		stop_time = time.clock()
-		rps = 1/(stop_time - start_time + 0.000001)
-		print "\r", niter, '@', rps, 'records/second',
 		niter += 1
-		start_time = time.clock()
+	stop_time = time.clock()
+	print niter, 'records in', stop_time - start_time, 'seconds;', niter/(stop_time-start_time), 'records per second'
+
