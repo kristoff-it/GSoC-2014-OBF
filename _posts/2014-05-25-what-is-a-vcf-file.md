@@ -3,14 +3,11 @@ layout: post_page
 title: What is a VCF (Variant Call Format) file?
 ---
 
-
-Quick summary
--------------
 VCF files contain the interesting parts of the genetic sequence of one or more samples. To understand what's of interest and what isn't, there's a good deal of precomputation and filtering required, making VCF files the result of a not-so-short processing chain.
 
 
-How VCF files are created
--------------------------
+### How VCF files are created ###
+
 To properly understand how these files get created, we must start from the beginning of the processing chain. 
 
 First of all, some genetic material from a sample is prepared and is placed using a pipette on a plate that is inserted into a machine that is capable of reading the actual base sequence. Usually these machines allow more than one sample to be placed in.
@@ -27,7 +24,7 @@ Depending on which specific technology the machine uses:
 
 On top of that, the reads might contain errors (an `A` might have been misread as a `G`, for example).
 
-### FASTQ ###
+#### FASTQ ####
 
 After a few hours or days, depending on how the machine was configured, what you get back is a FASTQ file which contains all the reads performed by the machine.
 Each read is also coupled with an equally long string of quality evalutaions for every single base: this is how the machine tells you how certain it is that a particular base has been recognized correctly.
@@ -45,20 +42,20 @@ While in [2] you have a reference that helps you understand what-shoud-go-where,
 
 For simplicity, let's say our case is [2].
 
-### SAM ###
+#### SAM ####
 
 Providing your FASTQ file and a reference genome to a kind of program called *read aligner*, you get a SAM file  that tells where each of your reads should be aligned.
 
 More specifically, for each read, you get the coordinate where its counterpart starts in the reference genome plus other informations like how certain an alignment is.
 As already pointed out, reads are not perfect, the shorter ones are tricky and, on top of that, the two sequeneces - yours and the reference one - have some actually meaningful differences that add more difficulty to the task.
 
-### VCF ###
+#### VCF ####
 
 VCF files are created by programs called *variant callers* and basically they are the result of filtering out matching bases from SAM files. What remains are the "interesting" bases: how our sample differs from the reference one. Since most bases are supposed to be shared (unless you're using a really distant reference, like using a Vulcanian genome as a reference for your Andorian sample, for example) the resulting file will be much smaller and, in practical terms, more useful.
 
 
-What are VCF files used for
----------------------------
+### What are VCF files used for ###
+
 There are lots of possible applications, the ones I know about are:
 
 * You are trying to identify how some samples differ from others to be able to distinguish between different groups.
