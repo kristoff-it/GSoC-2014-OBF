@@ -12,13 +12,13 @@ To properly understand how these files get created, we must start from the begin
 
 First of all, some genetic material from a sample is prepared and is placed using a pipette on a plate that is inserted into a machine that is capable of reading the actual base sequence. Usually these machines allow more than one sample to be placed in.
 
-The machine, unfortunately, is not capable of producing a single, correct and complete read and call it a day. What the machine does is perform a lot of overlapping reads of parts of the original sequence and try to generate enough data for you to be able to infer the original (correct and complete) sequence.
+The machine, unfortunately, is not capable of producing a single, correct and complete read and call it a day. What the machine does is perform a lot of partially overlapping reads of parts of the original sequence and try to generate enough data for you to be able to infer the original (correct and complete) sequence.
 
 Depending on which specific technology the machine uses:
 
    * It might yield a higher or lower number of reads in a specific amount of time.
 
-   * The single reads might be longer or shorter, usually this is proportionally inverse of how fast the machine is. 
+   * The single reads might be longer or shorter, usually this is proportionally inverse of how fast the machine is, both in terms of total time required and total number of performed reads. 
 
    * Certain regions of the original sequence might be over or under read, resulting in various problems (what if a certain region is completely absent from the reads?).
 
@@ -40,7 +40,8 @@ There are two possibilities:
 *Both cases require you to reassembly a jigsaw puzzle. 
 While in [2] you have a reference that helps you understand what-shoud-go-where, in [1] you don't even know what the subject is.* 
 
-For simplicity, let's say our case is [2].
+If no reference genome is available, the goal would be to generate one.
+Since my goal is to describe how to get to a VCF file, let's assume our case is [2].
 
 #### SAM ####
 
@@ -51,7 +52,7 @@ As already pointed out, reads are not perfect, the shorter ones are tricky and, 
 
 #### VCF ####
 
-VCF files are created by programs called *variant callers* and basically they are the result of filtering out matching bases from SAM files. What remains are the "interesting" bases: how our sample differs from the reference one. Since most bases are supposed to be shared (unless you're using a really distant reference, like using a Vulcanian genome as a reference for your Andorian sample, for example) the resulting file will be much smaller and, in practical terms, more useful.
+VCF files are created by programs called *variant callers* and are basically the result of filtering out matching bases from SAM files. What remains are the "interesting" bases: how our sample differs from the reference one. Since most bases are supposed to be shared (unless you're using a really distant reference, like using a Vulcanian genome as a reference for your Andorian sample, for example) the resulting file will be much smaller and, in practical terms, more useful.
 
 
 ### What are VCF files used for ###
@@ -60,9 +61,10 @@ There are lots of possible applications, the ones I know about are:
 
 * You are trying to identify how some samples differ from others to be able to distinguish between different groups.
 
-* You want to know if a sample has a particular predisposition. Using information stored in other databases you can annotate each "interesting" position with the information on how it might contribute to a particular predisposition or condition.
-
 * A group of samples expresses a particoular feature that you believe migth have a genetic origin. By matching the "interesting" bases of these samples against a "control group" (similar samples that don't show the feature in question) you can isolate the most probable bases involved.
+
+* You want to know if a sample has a particular predisposition. Using information stored in other databases you can annotate each "interesting" position with the information on how it might contribute to a particular predisposition (or condition).
+
 
 
 In my next post I'm going to write in more detail about VCF files, their structure and small gotchas that came up while trying to build a parser.
