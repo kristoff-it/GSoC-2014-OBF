@@ -18,6 +18,10 @@ After getting some more details about the qustion from my mentors, the resulting
 
 So, from now on I'm going to use this last definition as the meaning of 'private SNPs' (or, more concisely, 'privates'), with the implicit agreement that the same definition could be extended to other kind of mutations.
 
+#### Why that definition? ####
+
+Well, quite honestly I take it at face value, but, as I'm told, the most common case where this filtering is required is when you want to build a SNP array [wikipedia](http://en.wikipedia.org/wiki/SNP_array) and that requires you to select only the most "universal" SNPs.
+
 
 ### Finding privates ###
 
