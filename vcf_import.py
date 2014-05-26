@@ -1,7 +1,13 @@
 import gzip
 import rethinkdb as r
-from vcf_miniparser import parse_together
+from vcf_miniparser import parse_vcf_together
+import itertools
 
+
+# TODOS
+# check db status
+# add other switches
+#
 
 
 def load(collection, vcf_filenames):
@@ -13,19 +19,12 @@ def load(collection, vcf_filenames):
 			filestreams.append(gzip.open(filename, 'r'))
 		else:
 			filestreams.append(open(filename, 'r'))
-	parsers = parse_together(filestreams)
-
-	headers = next(parsers, None)
-	samples = next(parsers, None)
+	headers, samples, parsers = parse_vcf_together(filestreams)
 	
 	flattened_samples = tuple([sample for sublist in samples for sample in sublist])
 	assert len(flattened_samples) == len(set(flattened_samples)), \
 		"Some sample names are colliding!"
 
-	print "headers", len(headers)
-	print "filenames", len(vcf_filenames)
-	print "samples", len(samples)
-	print samples
 
 	## STORE METADATA ##
 	collection_info = {
@@ -34,37 +33,35 @@ def load(collection, vcf_filenames):
 		'samples': {sample: vcf_filenames[i] for i in range(len(headers)) for sample in samples[i]}
 	}
 
-	print collection_info
 	r.table('METADATA').insert(collection_info).run(db)
 
 	## STORE ROWS ##
-	r.table_create(collection).run(db)
+	r.table_create(collection[0]).run(db)
 
 	for multirecord in parsers:
-		r.table(collection).insert(merge_records(multirecord, vcf_filenames, samples)).run(db)
+		# pass
+		r.table(collection[0]).insert(merge_records(multirecord, vcf_filenames, samples), durability='soft').run(db)
 		
 
 
-def merge_records(lines, vcf_filenames, samples):
-	CHROM = lines[0].CHROM
-	POS = lines[0].POS
+def merge_records(multirecord, vcf_filenames, sample_names):
+	CHROM = multirecord[0][1].CHROM
+	POS = multirecord[0][1].POS
 	IDs = {}
-	REF = lines[0].REF
+	REF = multirecord[0][1].REF
 	# ALT = []
 	QUALs = {}
 	FILTERs = {}
 	INFOs = {}
-	FORMATs = {}
 	samples = {}
 
-	for i, record in lines:
+	for i, record in multirecord:
 		IDs[vcf_filenames[i]] = record.ID
 		# merge alts
 		QUALs[vcf_filenames[i]] = record.QUAL
 		FILTERs[vcf_filenames[i]] = record.FILTER
 		INFOs[vcf_filenames[i]] = record.INFO
-		FORMATs[vcf_filenames[i]] = record.FORMATs
-		samples = {samples[i][k]: match_sample(lines[i], k) for i in range(len(lines)) for k in range(len(lines[i].samples))}
+		samples.update([(sample_names[i][k], sample_data) for (k, sample_data) in enumerate(record.samples)])
 
 	return {
 		'CHROM': CHROM,
@@ -74,18 +71,9 @@ def merge_records(lines, vcf_filenames, samples):
 		'QUALs': QUALs,
 		'FILTERs': FILTERs,
 		'INFOs': INFOs,
-		'FORMATs': FORMATs,
+		# 'FORMATs': FORMATs,
 		'samples': samples
 	}
-
-def match_sample(record, index):
-	
-
-
-
-
-
-
 
 
 
@@ -105,7 +93,7 @@ def get_collection_status(collection, db):
 
 
 if __name__ == '__main__':
-	import argparse
+	import argparse, time
 
 	parser = argparse.ArgumentParser(description='Load some VCF files.')
 
@@ -118,6 +106,10 @@ if __name__ == '__main__':
 
 	args = parser.parse_args()
 
+	start_time = time.clock()
 	load(args.collection, args.vcf_filenames)
+	stop_time = time.clock()
+
+	print 'Loaded all records in', stop_time - start_time, 'seconds.'
 
 
