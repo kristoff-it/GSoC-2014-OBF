@@ -20,7 +20,7 @@ So, from now on I'm going to use this last definition as the meaning of 'private
 
 #### Why that definition instead of what vcf-contrast offers? ####
 
-Well, quite honestly I take it at face value, but, as I'm told, the most common case where this filtering is required is when you want to build a SNP array [[wikipedia]](http://en.wikipedia.org/wiki/SNP_array) and that requires you to select not only correct SNPs but also the most complete ones (in the sense that they both characterize *only* the correct samples and *all* of them, *not just* some), making incomplete (or partial) SNPs useless for this task.
+Well, quite honestly I take it at face value, but, as I'm told, the most common case where this filtering is needed is when you want to build a SNP array [[wikipedia]](http://en.wikipedia.org/wiki/SNP_array) and that requires you to select not only correct SNPs but also the most complete ones (in the sense that they both characterize *only* the correct samples and *all* of them, *not just* some), making incomplete (or partial) SNPs useless for this task.
 
 
 ### Finding privates ###
@@ -37,7 +37,7 @@ Not only that, but if you want to know the privates of each sample inside the sa
 ### Finding privates for all possible groupings ###
 
 Fortunately, as it turns out, computing in a single pass the privates for all the possible groupings of samples is not that hard.
-The resulting algebric structure is so nice that all that is needed is to compute equivalence classes.
+The resulting algebraic structure is so nice that all that is needed is to compute equivalence classes.
 I wrote an explanation of the algorithm which you can find on the main branch of this project's github repository: [[computing-privates-all-groupings.md]](https://github.com/kappaloris/GSoC-2014-OBF/blob/master/computing-privates-all-groupings.md).
 
 
