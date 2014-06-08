@@ -7,6 +7,71 @@ import rethinkdb as r
 
 
 
+
+def main():
+	import argparse, time, re
+
+	parser = argparse.ArgumentParser(description='Load some VCF files.')
+
+	parser.add_argument('--host', default='localhost', 
+		help='Host address where the RethinkDB instance is running. Defaults to `localhost`.')
+
+	parser.add_argument('--port', default=28015, 
+		help='Port number where the RethinkDB instance is listening. Defaults to `28015`.')
+
+	parser.add_argument('--db', default='VCF', 
+		help='Database name where the VCF data is stored. Defaults to `VCF`.')
+
+	parser.add_argument('collection', 
+		help='The name of the collection where the VCF files should be stored.')
+
+	parser.add_argument('vcf_filenames', metavar='file', nargs='+',
+		help='A VCF file.')
+
+	parser.add_argument('--append', action='store_true',
+		help='Add the samples to a collection that might already have items inside. (is slower than adding items to a new collection)')
+
+	parser.add_argument('--hide-loading', action='store_true',
+		help='Disables showing of loading percentage completion, useful to remove clutter when logging stdout.')
+
+
+	args = parser.parse_args()
+
+	### Input sanity ###
+	assert re.match(r'^[a-zA-Z0-9_]+$', args.db) is not None, \
+		"You can only use alphanumeric characters and underscores for the database name, aborting."
+
+	assert len(args.vcf_filenames) == len(set(args.vcf_filenames)), \
+		"You are trying to import the same VCF file twice, aborting."
+	####################
+
+	# Connect to RethinkDB
+	db_connection = r.connect(host=args.host, port=args.port)
+
+	### Db state check ###
+	check_db_status(db_connection, args.db)
+	######################
+
+	### Collection state check ###
+	if not args.append:
+		assert args.collection not in r.table_list().run(db_connection) and r.table('__METADATA__').get(args.collection).run(db_connection) is None, \
+			"This collection already exists but you didn't specify the `--append` flag, aborting."
+	##############################
+
+	# Perform the actual import:
+	start_time = time.time()
+	if not args.append:
+		quick_load(db_connection, args.collection, args.vcf_filenames, hide_loading=args.hide_loading)
+	else:
+		append_load(db_connection, args.collection, args.vcf_filenames, hide_loading=args.hide_loading)
+	stop_time = time.time()
+
+	print('Loaded all records in', stop_time - start_time, 'seconds.')
+
+
+
+
+
 def merge_records(multirecord, vcf_filenames, sample_names):
 	"""Performs the merging operations required to store multiple (corresponding) 
 	rows of different VCF files as a single object/document into the DBMS."""
@@ -108,8 +173,8 @@ def append_load(db, collection, vcf_filenames, hide_loading=False):
 	"""Performs the loading operations for a collection that already contains samples."""
 
 	# check for inconsistent db state
-	table_exists = args.collection in r.table_list().run(db_connection)
-	meta_exists = r.table('__METADATA__').get(args.collection).run(db_connection) is not None
+	table_exists = collection in r.table_list().run(db)
+	meta_exists = r.table('__METADATA__').get(collection).run(db) is not None
 
 	assert table_exists == meta_exists, \
 		"This collection is in an inconsistent state. Use vcf_admin to perform sanity checks."
@@ -119,8 +184,8 @@ def append_load(db, collection, vcf_filenames, hide_loading=False):
 		return quick_load(db, collection, vcf_filenames, hide_loading=hide_loading)
 	else:
 		# must check if the collection has finished its init operations
-		assert not r.table('__METADATA__').get(args.collection).has_fields('doing_init').run(db_connection) \
-			   and not r.table('__METADATA__').get(args.collection).has_fields('appending_filenames').run(db_connection), \
+		assert not r.table('__METADATA__').get(collection).has_fields('doing_init').run(db) \
+			   and not r.table('__METADATA__').get(collection).has_fields('appending_filenames').run(db), \
 			"This collection either has still to complete another import operation or has been left in an inconsistent state, aborting. Use vcf_admin to perform consistency checks. "
 
 	headers, samples, parsers, filestreams = init_parsers(vcf_filenames)
@@ -193,7 +258,7 @@ def check_db_status(db_connection, db_name):
 
 	# Database exists?
 	if db_name not in r.db_list().run(db_connection):
-		print('Database does not exit, attempting to create it.')
+		print('Database does not exist, attempting to create it.')
 		try:
 			result = r.db_create(db_name).run(db_connection)
 		except r.RqlRuntimeError:
@@ -223,67 +288,5 @@ def check_db_status(db_connection, db_name):
 	assert metadata is not None and metadata.get('application') == 'vcfthink', \
 		"The database named `{}` does not belong to this application. Use vcf_init.py to initialize a new database.".format(db_name)
 
-
-
-
 if __name__ == '__main__':
-	import argparse, time, re
-
-	parser = argparse.ArgumentParser(description='Load some VCF files.')
-
-	parser.add_argument('--host', default='localhost', 
-		help='Host address where the RethinkDB instance is running. Defaults to `localhost`.')
-
-	parser.add_argument('--port', default=28015, 
-		help='Port number where the RethinkDB instance is listening. Defaults to `28015`.')
-
-	parser.add_argument('--db', default='VCF', 
-		help='Database name where the VCF data is stored. Defaults to `VCF`.')
-
-	parser.add_argument('collection', metavar='collection', type=str, 
-		help='The name of the collection where the VCF files should be stored.')
-
-	parser.add_argument('vcf_filenames', metavar='file', type=str, nargs='+',
-		help='A VCF file.')
-
-	parser.add_argument('--append', action='store_true',
-		help='Add the samples to a collection that might already have items inside. (is slower than adding items to a new collection)')
-
-	parser.add_argument('--hide-loading', action='store_true',
-		help='Disables showing of loading percentage completion, useful to remove clutter when logging stdout.')
-
-
-	args = parser.parse_args()
-
-	### Input sanity ###
-	assert re.match(r'^[a-zA-Z0-9_]+$', args.db) is not None, \
-		"You can only use alphanumeric characters and underscores for the database name, aborting."
-
-	assert len(args.vcf_filenames) == len(set(args.vcf_filenames)), \
-		"You are trying to import the same VCF file twice, aborting."
-	####################
-
-	# Connect to RethinkDB
-	db_connection = r.connect(host=args.host, port=args.port)
-
-	### Db state check ###
-	check_db_status(db_connection, args.db)
-	######################
-
-	### Collection state check ###
-	if not args.append:
-		assert args.collection not in r.table_list().run(db_connection) and r.table('__METADATA__').get(args.collection).run(db_connection) is None, \
-			"This collection already exists but you didn't specify the `--append` flag, aborting."
-	##############################
-
-	# Perform the actual import:
-	start_time = time.time()
-	if not args.append:
-		quick_load(db_connection, args.collection, args.vcf_filenames, hide_loading=args.hide_loading)
-	else:
-		append_load(db_connection, args.collection, args.vcf_filenames, hide_loading=args.hide_loading)
-	stop_time = time.time()
-
-	print('Loaded all records in', stop_time - start_time, 'seconds.')
-
-
+	main()
