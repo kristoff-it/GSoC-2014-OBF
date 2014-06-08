@@ -1,4 +1,5 @@
 name: GSoC 2014 O|B|F
+description: Progress blog for the VCF database project.
 markdown: redcarpet
 pygments: true
 paginate: 10

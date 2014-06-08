@@ -1,2 +1,8 @@
 _site
 test
+
+Dockerfile
+Vagrantfile
+
+rethinkdb_data/
+.vagrant/
