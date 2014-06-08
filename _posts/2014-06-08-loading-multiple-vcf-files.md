@@ -11,7 +11,7 @@ While I'm not ready to talk about it in full detail, some considerations are alr
 
 2. Building and using indexes (this applies to the index needed for privates too!) becomes easier because we can both define 'record-level' indexes and 'sample-level' indexes effortlessly (as long as multi-indexes are supported by the DBMS). I will write more about that later.
 
-3. In the end, when querying, having a 'record' atom is the most natural way to describe what you want. The only difference is that some fields start having multiple values since different VCF files migth have different opinions (for example a record might have passed all filters in a VCF file, while its counterpart in another file might have not).
+3. In the end, when querying, having a 'record' atom is the most natural way to describe what you want. The only difference is that some fields start having multiple values since different VCF files might have different opinions (for example a record might have passed all filters in a VCF file, while its counterpart in another file might have not).
 
 ### Multirecords ###
 
@@ -48,5 +48,5 @@ r.table(collection)
                   r.error()))).run(db)
 ```
 
-The fact that this problem gets solved with such elegance (both in terms of soundness of sequence of operations and not too much convoluted code) gives RethinkDB a pretty consistend upper hand against other NoSQL DBMSs for this kind of applications.
+The fact that this problem gets solved with such elegance (both in terms of soundness of sequence of operations and not too much convoluted code) gives RethinkDB a pretty consistent upper hand against other NoSQL DBMSs for this kind of applications.
 
