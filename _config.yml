@@ -1,5 +1,6 @@
 name: GSoC 2014 O|B|F
 description: Progress blog for the VCF database project.
+url: http://kappaloris.github.io/GSoC-2014-OBF
 markdown: redcarpet
 pygments: true
 paginate: 10

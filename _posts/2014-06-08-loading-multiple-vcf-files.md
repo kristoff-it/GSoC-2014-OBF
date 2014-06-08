@@ -1,6 +1,6 @@
 ---
 layout: post_page
-title: Loading VCF files
+title: Loading multiple VCF files
 ---
 
 As I mentioned in the previous post, when importing multiple VCF files at once, I try to align them in terms of `#CHROM` and `POS` (similarly to what PyVCF's [[walk_together]](http://pyvcf.readthedocs.org/en/latest/FILTERS.html#vcf.utils.walk_together) does). The reason for going trough all that trouble is because of how the datamodel is shaping up.
