@@ -1,10 +1,8 @@
 from collections import namedtuple
 
-## TODO: use real regexes for cases where we might be dealing with quoted blocks
 
 ## DATA STRUCTURES ##
 Record = namedtuple("Record", "CHROM POS ID REF ALT QUAL FILTER INFO samples")
-RawRecord = namedtuple("RawRecord", "CHROM POS ID REF ALT QUAL FILTER INFO FORMAT samples")
 Headers = namedtuple("Headers", "fileformat infos formats filters alts extra")
 #####################
 
@@ -18,26 +16,17 @@ class BadInfoField(Exception):
 	pass
 ################
 
-# If a field not specified in the headers is found, 
-# then an automatic type inferece is tried and, in 
-# case of success, the new inferred format is recorded:
+# Unsafe typecasting might lead to unwanted behaviours that could 
+# be difficult to debug for the common user, for this reason all 
+# undefined formats are interpreted as variable-length ('.') lists 
+# of strings. 
 
-# For now all undefined formats are interpreted as variable-length ('.')
-# lists of strings. This is because this is an "upcast", meaning that, 
-# whlile useless sometimes, we never get it wrong. We could try to "downcast"
-# the values to Integer for example, but we might later discover that
-# the correct yype was Float, or worse, String. Ending up with an
-# inconsistent representation of a field would be awful, so, without
-# a better understanding of what might happen, no dangerous conversion is
-# attempted.
-
-# TODO: check if single string would be better
-
-inferred_info_fields = {}
-inferred_genotype_fields = {}
+inferred_infos = {}
+inferred_formats = {}
 
 
 standard_info_fields = {}
+
 
 standard_format_fields = {}
 # standard_format_fields['GT']	=	[]
@@ -59,7 +48,7 @@ standard_format_fields = {}
 # VCF
 #
 
-def parse_vcf(filestream, ignore_bad_infos=False, drop_bad_records=False, dont_parse_fields=False):
+def parse_vcf(filestream, ignore_bad_infos=False, drop_bad_records=False):
 	"""Immediately parses the headers, the sample names and returns
 	them along with a generator to parse the records. You can optionally
 	silently drop bad records, only drop bad info fields or skip the 
@@ -79,7 +68,7 @@ def parse_vcf(filestream, ignore_bad_infos=False, drop_bad_records=False, dont_p
 	[{'GT': '0|0', 'GQ': 35, 'DP': 4}, ...]"""
 
 	headers, samples = parse_headers(filestream)
-	return headers, samples, parse_records(filestream, headers, ignore_bad_infos, drop_bad_records, dont_parse_fields)
+	return headers, samples, parse_records(filestream, headers, ignore_bad_infos, drop_bad_records)
 
 
 
@@ -98,8 +87,8 @@ def parse_headers(filestream):
 	#  0         1 
 	#  01234567890123456789
 	#  ##fileformat=VCFv4.1
-	fileformat = line[17:20]
-	assert fileformat in ("4.0", "4.1", "4.2"), \
+	fileformat = line[13:20]
+	assert fileformat in ("VCFv4.0", "VCFv4.1", "VCFv4.2"), \
 		"Not a VCF file or not a supported version (4.0, 4.1, 4.2)."
 
 	## HEADERS ##
@@ -109,7 +98,7 @@ def parse_headers(filestream):
 		try:
 			parse_header_line(line, headers=headers)
 		except:
-			raise Exception('Error while parsing header line: %s' % line)
+			raise Exception('Error while parsing header line: {}'.format(line))
 		line = filestream.readline()
 
 	# TODO: can't have empty lines... should allow?
@@ -126,7 +115,8 @@ def parse_headers(filestream):
 
 	return headers, samples
 
-#TODO: rewrite
+
+
 def parse_header_line(line, headers):
 	if line.startswith("##INFO"):
 
@@ -136,24 +126,32 @@ def parse_header_line(line, headers):
 		ID = Number = Type = Description = None
 
 		subline = line.strip()[8:-1]
-		kvpairs = subline.split(',', 3) # dirty hack :3
-		for kv in kvpairs:
-			key, value = kv.split('=', 1)
-			key, value = key.strip(), value.strip()
-			if key == "ID":
-				ID = value
-			elif key == "Number":
-				Number = value
-			elif key == "Type":
-				Type = value
-			elif key == "Description":
-				Description = value	
-			else:
-				print key
-				assert False
+		idkv, numkv, typekv, desckv = subline.split(',', 3) # dirty hack :3
+		# ^ all fields must be present, its fine to fail if there is a mismatch
+
+		# ID
+		key, value = idkv.split('=')
+		assert key == 'ID'
+		ID = value
+
+		# Number
+		key, value = numkv.split('=')
+		assert key == 'Number'
+		Number = value
+
+		# Type
+		key, value = typekv.split('=')
+		assert key == 'Type'
+		Type = value
+
+		# Description
+		key, value = desckv.split('=', 1)
+		assert key == 'Description'
+		Description = value
 
 		headers.infos[ID] = [Number, Type, Description]
 		return
+
 
 	if line.startswith("##FORMAT"):
 
@@ -163,106 +161,112 @@ def parse_header_line(line, headers):
 		ID = Number = Type = Description = None
 
 		subline = line.strip()[10:-1]
-		kvpairs = subline.split(',', 3)
-		for kv in kvpairs:
-			key, value = kv.split('=', 1)
-			key, value = key.strip(), value.strip()
-			if key == "ID":
-				ID = value
-			elif key == "Number":
-				Number = value
-			elif key == "Type":
-				Type = value
-			elif key == "Description":
-				Description = value	
-			else: 
-				print key
-				assert False
+		idkv, numkv, typekv, desckv = subline.split(',', 3)
+		# ^ all fields must be present, its fine to fail if there is a mismatch
+		
+		# ID
+		key, value = idkv.split('=')
+		assert key == 'ID'
+		ID = value
+
+		# Number
+		key, value = numkv.split('=')
+		assert key == 'Number'
+		Number = value
+
+		# Type
+		key, value = typekv.split('=')
+		assert key == 'Type'
+		Type = value
+
+		# Description
+		key, value = desckv.split('=', 1)
+		assert key == 'Description'
+		Description = value
 
 		headers.formats[ID] = [Number, Type, Description]
 		return
+
 
 	if line.startswith("##FILTER"):
 
 		# 0         1      -
 		# 012345678901 ... 1
 		# ##FILTER=<ID ... >
-		ID = Number = Type = Description = None
+		ID = Number = Description = None
 
 		subline = line.strip()[10:-1]
-		kvpairs = subline.split(',', 1)
-		for kv in kvpairs:
-			key, value = kv.split('=', 1)
-			key, value = key.strip(), value.strip()
-			if key == "ID":
-				ID = value
-			elif key == "Description":
-				Description = value	
-			else:
-				print key
-				assert False
+		idkv, numkv, desckv = subline.split(',', 1)
+		# ^ all fields must be present, its fine to fail if there is a mismatch
+
+		# ID
+		key, value = idkv.split('=')
+		assert key == 'ID'
+		ID = value
+
+		# Number
+		key, value = numkv.split('=')
+		assert key == 'Number'
+		Number = value
+
+		# Description
+		key, value = desckv.split('=', 1)
+		assert key == 'Description'
+		Description = value
 
 		headers.filters[ID] = [Number, Description]
 		return
+
 
 	if line.startswith("##ALT"):
 
 		# 0         1     -
 		# 01234567890 ... 1
 		# ##ALT=<ID=D ... >
-		ID = Number = Type = Description = None
+		ID = Number = Description = None
 
 		subline = line.strip()[10:-1]
-		kvpairs = subline.split(',', 1)
-		for kv in kvpairs:
-			key, value = kv.split('=', 1)
-			key, value = key.strip(), value.strip()
-			if key == "ID":
-				ID = value
-			elif key == "Description":
-				Description = value	
-			else:
-				print key
-				assert False
+		idkv, numkv, desckv = subline.split(',', 1)
+		# ^ all fields must be present, its fine to fail if there is a mismatch
+
+		# ID
+		key, value = idkv.split('=')
+		assert key == 'ID'
+		ID = value
+
+		# Number
+		key, value = numkv.split('=')
+		assert key == 'Number'
+		Number = value
+
+		# Description
+		key, value = desckv.split('=', 1)
+		assert key == 'Description'
+		Description = value
 
 		headers.alts[ID] = [Number, Description]
 		return
-
-
-	# DEFAULT:
 
 
 #
 # RECORDS
 #
 
-def parse_records(filestream, headers, ignore_bad_infos=False, drop_bad_records=False, dont_parse_fields=False):
+def parse_records(filestream, headers, ignore_bad_infos=False, drop_bad_records=False):
 	for line in filestream:
 		try:
-			yield parse_record_line(line, headers, ignore_bad_infos, dont_parse_fields)
+			yield parse_record_line(line, headers, ignore_bad_infos)
 		except ValueError:
 			if drop_bad_records:
 				continue
+			#else
 			raise BadRecord(line)
 
 
 
-def parse_record_line(line, headers, ignore_bad_infos, dont_parse_fields):
+def parse_record_line(line, headers, ignore_bad_infos):
 	fields = line.split('\t')
 
-	if dont_parse_fields:
-		return RawRecord(  
-						CHROM=fields[0], 
-						POS=int(fields[1]), 
-						ID=fields[2], 
-						REF=fields[3], 
-						ALT=fields[4].split(','), 
-						QUAL=fields[5],
-						FILTER=fields[6], 
-						INFO=fields[7].split(';'),
-						FORMAT=fields[8].split(':'), 
-						samples=tuple([field.split(':') for field in fields[9:]])
-					)
 	return Record(  
 					CHROM=fields[0],
 					POS=int(fields[1]), 
@@ -279,6 +283,9 @@ def parse_record_line(line, headers, ignore_bad_infos, dont_parse_fields):
 
 def parse_info_field(field, header_infos, ignore_bad_infos):
 	parsed_fields = {}
+
+	if field == '.':
+		return {}
 
 	for kv in field.split(';'):
 
@@ -312,9 +319,17 @@ def parse_info_field(field, header_infos, ignore_bad_infos):
 					continue
 				raise BadInfoField(field)
 
+		# Undefined field
+		if key not in inferred_infos:
+			inferred_infos[key] = ['.', 'String', '"### FIELD WAS NOT DEFINED ###"']
+
+		parsed_fields[key] = values[i].split(',')
+
+
 	return parsed_fields
 
 def parse_genotype_fields(format_field, samples, header_formats):
+
 	fieldnames = format_field.split(':')
 	num_fields = len(fieldnames)
 	if num_fields == 0: 
@@ -325,8 +340,8 @@ def parse_genotype_fields(format_field, samples, header_formats):
 	parsed_samples = []
 	for sample in samples:		
 		values = sample.split(':')
-		#"Trailing fields can be dropped, if present 
-		# the first field must be 'GT' and must be present for each sample."
+		#"Trailing fields can be dropped, if present, the first 
+		# field must be 'GT' and must be present for each sample."
 		assert first_field_is_GT <= len(values) <= num_fields
 		
 		parsed_fields = {}
@@ -376,6 +391,9 @@ def parse_defined_field(field, definition):
 	# if definition[1] == 'Flag':
 	# 	return True
 
+	if field == '.':
+		return None
+
 	if definition[0] == '1':
 		if definition[1] in ('String', 'Character'):
 			return field
@@ -390,9 +408,6 @@ def parse_defined_field(field, definition):
 		return list(float(x) for x in field.split(','))
 	
 	return list(int(x) for x in field.split(','))
-
-
-
 
 
 #
@@ -417,7 +432,9 @@ def parse_records_together(fs_headers_touple_list):
 	while exhausted_parsers < len(fs_headers_touple_list):
 		selected_records = []
 		selected_records_ids = []
-		lowest_chrom = lowest_pos = 'ZZZZZZZZZ' #float('inf')
+		lowest_chrom = '~~~~~~~~~~~~~~~~~~'
+		# ~ is the highest ascii valued printable character, lexicographical max_value somehow
+		lowest_pos = float('inf')
 
 		for i, record in enumerate(record_buffer):
 			# a better approach is possible ^^^^
@@ -445,21 +462,7 @@ def parse_records_together(fs_headers_touple_list):
 
 
 
-
-
-
-
 if __name__ == '__main__':
-	import gzip, time
-	vcf = open('/Users/kappa/github/GSoC-2014-OBF/test/minivcf.vcf', 'r')
-	# a = parse_together([vcf])
-	pb = False
-	h, s, a = parse_vcf_together([vcf])
-	print 'RAW fields:', pb
-	start_time = time.clock()
-	niter = 0
-	for x in a:
-		niter += 1
-	stop_time = time.clock()
-	print niter, 'records in', stop_time - start_time, 'seconds;', niter/(stop_time-start_time), 'records per second'
+	pass
+	# TODO: tests
 

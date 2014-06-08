@@ -2,3 +2,10 @@ _site/
 test/
 
 *.pyc
+
+rethinkdb_data/
+Vagrantfile
+
+Dockerfile
+
+.vagrant/
