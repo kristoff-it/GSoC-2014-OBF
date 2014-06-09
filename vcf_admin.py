@@ -34,8 +34,8 @@ def main():
 		print 'list [collection]   list all collections or detailed'
 		print '                    info pertaining a single collection'
 		print ''
-		print 'check [collection]  check consistency status of all'
-		print '                    collections or of a single collection'
+		print 'check               check consistency status of all '
+		print '                    collections'
 		print ''
 		print 'fix [collection]    fix all spurious collections or'
 		print '                    a single inconsistent collection'
@@ -89,9 +89,7 @@ def main():
 
 
 	if args.command == 'fix':
-		assert len(args.options) < 2, \
-			"The only (optional) argument for this command is a collection name."
-		#return do_fix()
+		return do_fix(db_connection, args.options)
 
 	if args.command == 'rename':
 		assert len(args.options) == 2, \
@@ -146,60 +144,143 @@ def find_spurious_meta_and_tables(metadata, table_list):
 
 
 def do_check(db, options):
+	# assert len(options) < 2, \
+	# 	"The only (optional) argument for this command is a collection name."
+	# if len(options) == 0:
+	print '# Checking consistency state of all collections.'
+	print '# Will now check for spurious collections by looking'
+	print '# for mismatches between present tables and metadata.'
+	metadata = list(r.table('__METADATA__').run(db))
+
+	bad_meta, bad_tables = find_spurious_meta_and_tables(metadata, r.table_list().run(db))
+	if bad_meta:
+		print '### SPURIOUS METADATA ###'
+		for name in bad_meta:
+			print name
+
+	if bad_tables:
+		print '### SPURIOUS TABLES ###'
+		for name in bad_tables:
+			print name
+
+	if not bad_meta and not bad_tables:
+		print '# No spurious collections found.'
+
+	print '# Will now check if the remaining collections have pending jobs.'
+	printed_header = False
+	for collection in metadata:
+		if collection.get('doing_init'):
+			if not printed_header:
+				print '### COLLECTIONS WITH PENDING JOBS ###'
+				printed_header = True
+
+			print collection['id'].ljust(18), '\t doing_init'
+			continue
+		filenames = collection.get('appending_filenames')
+		if filenames:
+			if not printed_header:
+				print '### COLLECTIONS WITH PENDING JOBS ###'
+				printed_header = True
+			print collection['id'].ljust(18), '\t appending_filenames [{}]'.format(', '.join(filenames))
+	if not printed_header:
+		print '# No collections with pending jobs found.'
+
+
+	print '# Use the fix command without parameters to delete all'
+	print '# spurious collections. Use the fix command with a'
+	print '# collection name as parameter to undo a pending job over'
+	print '# that single collection. For this second case:'
+	print '# If the state was `appending_filenames`, the tool will'
+	print '# remove the data partially imported (basically reverts the'
+	print '# failed import without removing the consistent data).'
+	print '# If the state was `doing_init`, the tool will delete the'
+	print '# whole collection, since it would leave it empty in any case.'
+	print ''
+	print '# Please do be sure that all pending jobs have actually'
+	print '# failed and are not still running. It would be rude to '
+	print '# delete a collection currently in use by another process.'
+	return
+
+def do_fix(db, options):
 	assert len(options) < 2, \
 		"The only (optional) argument for this command is a collection name."
+
 	if len(options) == 0:
-		print '# Checking consistency state of all collections.'
-		print '# Will now check for spurious collections by looking'
-		print '# for mismatches between present tables and metadata.'
-		metadata = list(r.table('__METADATA__').run(db))
+		print 'Deleting spurious collections.'
+		bad_meta, bad_tables = find_spurious_meta_and_tables(r.table('__METADATA__').run(db), r.table_list().run(db))
+		
+		if len(bad_meta) == 0 and len(bad_tables) == 0:
+			print 'All seems fine, nothing to do.'
+			return
 
-		bad_meta, bad_tables = find_spurious_meta_and_tables(metadata, r.table_list().run(db))
-		if bad_meta:
-			print '### SPURIOUS METADATA ###'
-			for name in bad_meta:
-				print name
+		r.table('__METADATA__').get_all(*bad_meta).delete().run(db)
+		print 'Deleted {} spurious metadata entries.'.format(len(bad_meta))
 
-		if bad_tables:
-			print '### SPURIOUS TABLES ###'
-			for name in bad_tables:
-				print name
+		for table in bad_tables:
+			r.table_drop(table).run(db)
 
-		if not bad_meta and not bad_tables:
-			print '# No spurious collections found.'
+		print 'Deleted {} spurious tables.'.format(len(bad_tables))
 
-		print '# Will now check if the remaining collections have pending jobs.'
-		printed_header = False
-		for collection in metadata:
-			if collection.get('doing_init'):
-				if not printed_header:
-					print '### COLLECTIONS WITH PENDING JOBS ###'
-					printed_header = True
+		print 'Done.'
+		return
 
-				print collection['id'].ljust(18), '\t doing_init'
-				continue
-			filenames = collection.get('appending_filenames')
-			if filenames:
-				if not printed_header:
-					print '### COLLECTIONS WITH PENDING JOBS ###'
-					printed_header = True
-				print collection['id'].ljust(18), '\t appending_filenames [{}]'.format(', '.join(filenames))
-		if not printed_header:
-			print '# No collections with pending jobs found.'
+	if len(options) == 1:
+		print 'Fixing collection {}...'.format(options[0])
+
+		meta = r.table('__METADATA__').get(options[0]).run(db)
+		doing_init = meta.get('doing_init')
+		appending_filenames = meta.get('appending_filenames')
+		
+		if meta is None:
+			print 'Collection does not exist, aborting.'
+			return 
+
+		assert options[0] in r.table_list().run(db), \
+			"This is a spurious collection, aborting. Use fix without any parameter to delete it."
+
+		if doing_init == None == appending_filenames:
+			print 'This collection is in a consistent state, nothing to do here.'
+			return
+
+		if doing_init:
+			print 'This collection has not completed the initial import job, will now delete it.'
+			return do_delete(db, options + ['-f'])
+
+		if appending_filenames:
+			print 'This collection has not completed an import operation that can be reverted without needing to delete the entire collection.'
+			print 'The following VCF files will be removed:'
+			print '\n'.join(appending_filenames)
+
+			bad_samples = [k for k in meta['samples'] if meta['samples'][k] in appending_filenames]
+			print 'The following samples will be removed:'
+			print '\n'.join(bad_samples)
+
+			result = r.table(options[0]) \
+						.filter(r.row['IDs'].keys().set_intersection(appending_filenames) != [])\
+						.replace(lambda x: r.branch(x['IDs'].keys().set_difference(appending_filenames) == [],
+							None, # delete record
+							x.merge({
+								'IDs': r.literal(x['IDs'].without(appending_filenames)),
+								'QUALs': r.literal(x['QUALs'].without(appending_filenames)),
+								'FILTERs': r.literal(x['FILTERs'].without(appending_filenames)),
+								'INFOs': r.literal(x['INFOs'].without(appending_filenames)),
+								'samples': r.literal(x['samples'].without(bad_samples)),
+								}))).run(db)
+			
+			print 'Total records: {} deleted, {} reverted.'.format(result['deleted'], result['replaced'])
+
+			r.table('__METADATA__').get(options[0])\
+				.replace(lambda x: x.merge({
+					'vcfs': r.literal(x['vcfs'].without(appending_filenames)),
+					'samples': r.literal(x['samples'].without(bad_samples))
+					}).without('appending_filenames')).run(db)
+
+			print 'Done.'
 
 
-		print '# Use the fix command without parameters to delete all'
-		print '# spurious collections. Use the fix command with a'
-		print '# collection name as parameter to undo a pending job over'
-		print '# that single collection. For this second case:'
-		print '# If the state was `appending_filenames`, the tool will'
-		print '# remove the data partially imported.'
-		print '# If the state was `doing_init`, the tool will delete the'
-		print '# whole collection, since it would leave it empty in any case.'
-		print ''
-		print '# Please in any case make sure the pending jobs have actually'
-		print '# failed and are not still running. It would be rude to '
-		print '# delete a collection currently in use.'
+
+
+
 
 def do_copy(db, options):
 	assert len(options) == 2, \
@@ -243,7 +324,7 @@ def do_delete(db, options):
 			exit(1)
 
 	r.table_drop(options[0]).run(db)
-	r.table('__METADATA__').delete(options[0])
+	r.table('__METADATA__').get(options[0]).delete().run(db)
 	print 'Deleted collection `{}`.'.format(options[0])
 
 

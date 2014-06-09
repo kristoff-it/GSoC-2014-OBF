@@ -6,7 +6,7 @@ from vcf_miniparser import parse_vcf_together
 import rethinkdb as r
 
 
-
+# TODO: --force-append
 
 def main():
 	import argparse, time, re
@@ -40,7 +40,10 @@ def main():
 	### Input sanity ###
 	assert re.match(r'^[a-zA-Z0-9_]+$', args.db) is not None, \
 		"You can only use alphanumeric characters and underscores for the database name, aborting."
-
+	assert re.match(r'^[a-zA-Z0-9_]+$', args.collection) is not None, \
+		"You can only use alphanumeric characters and underscores for the collection name, aborting."
+	assert not args.collection.startswith('__'), \
+		"Names starting with double underscores (__) are reserved for internal usage, aborting."
 	assert len(args.vcf_filenames) == len(set(args.vcf_filenames)), \
 		"You are trying to import the same VCF file twice, aborting."
 	####################
@@ -54,8 +57,13 @@ def main():
 
 	### Collection state check ###
 	if not args.append:
-		assert args.collection not in r.table_list().run(db_connection) and r.table('__METADATA__').get(args.collection).run(db_connection) is None, \
+		metadata = r.table('__METADATA__').get(args.collection).run(db_connection)
+		assert args.collection not in r.table_list().run(db_connection) and metadata is None, \
 			"This collection already exists but you didn't specify the `--append` flag, aborting."
+		#assert metadata.get('doing_init') is None and metadata.get('appending_filenames') is None, \
+		#	"There either is another pending job or the last job failed and left the collection in an inconsistent state, aborting. Use vcf-admin to perform sanity checks."
+		#	"There is already a pending job on this collection. It might be a legitimate operation " +\
+		#	"still running or the collection might have been left in an inconsistent state. Add the flag `--force-append` to perform concurrent imports, otherwise use vcf_admin to perform sanity checks."
 	##############################
 
 	# Perform the actual import:
