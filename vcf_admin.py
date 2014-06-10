@@ -50,11 +50,6 @@ def main():
 
 	# from this point onward a db connection is required
 
-	### Input sanity ###
-	assert re.match(r'^[a-zA-Z0-9_]+$', args.db) is not None, \
-		"You can only use alphanumeric characters and underscores for the database name, aborting."
-	####################
-
 	# Connect to RethinkDB
 	db_connection = r.connect(host=args.host, port=args.port)
 

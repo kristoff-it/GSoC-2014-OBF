@@ -301,7 +301,7 @@ def parse_info_field(field, header_infos, ignore_bad_infos):
 		field_definition = standard_info_fields.get(key, None)
 		if field_definition is not None:
 			try:
-				parsed_value = parse_defined_field()
+				parsed_value = parse_defined_field(value, field_definition)
 				parsed_fields[key] = parsed_value
 			except ValueError:
 				if ignore_bad_infos:
@@ -312,7 +312,7 @@ def parse_info_field(field, header_infos, ignore_bad_infos):
 		field_definition = header_infos.get(key, None)
 		if field_definition is not None:
 			try:
-				parsed_value = parse_defined_field()
+				parsed_value = parse_defined_field(value, field_definition)
 				parsed_fields[key] = parsed_value
 			except ValueError:
 				if ignore_bad_infos:
@@ -323,7 +323,7 @@ def parse_info_field(field, header_infos, ignore_bad_infos):
 		if key not in inferred_infos:
 			inferred_infos[key] = ['.', 'String', '"### FIELD WAS NOT DEFINED ###"']
 
-		parsed_fields[key] = values[i].split(',')
+		parsed_fields[key] = value.split(',')
 
 
 	return parsed_fields
