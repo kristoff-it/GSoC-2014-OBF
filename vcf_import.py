@@ -170,7 +170,7 @@ def quick_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=1, 
 	filestreams = [f.fileobj if f.name.endswith('.gz') else f for f in filestreams]
 
 	# Get filesize for every stream, used to print completion percentage and speed.
-	total_filesize = sum([os.path.getsize(vcf) for vcf in vcf_filenames])
+	total_filesize = float(sum([os.path.getsize(vcf) for vcf in vcf_filenames]))
 	total_filesize_as_percentage = total_filesize/100
 
 	## STORE METADATA ##
