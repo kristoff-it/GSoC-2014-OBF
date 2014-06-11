@@ -90,7 +90,7 @@ def main():
 
 
 def is_collection_new(db, collection):
-	metadata r.table('__METADATA__').get(args.collection).run(db_connection)
+	metadata = r.table('__METADATA__').get(args.collection).run(db_connection)
 	table_list = r.table_list().run(db_connection)
 	return metadata is None and collection not in table_list
 
