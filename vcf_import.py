@@ -1,15 +1,25 @@
 #!/usr/bin/env python
 
 from __future__ import print_function
-import os, sys, gzip, itertools, re
+import os, sys, gzip, itertools, re, time, datetime
 from vcf_miniparser import parse_vcf_together
-import rethinkdb as r
+try:
+	import rethinkdb as r
+except:
+	print('Unable to import the RethinkDB python module.')
+	print('To install: pip install rethinkdb')
+	print('(You might also want to consider installing the native C++ ProtocolBuffers compiler for better performance)')
+	print('\n')
+	raise ImportError
 
-
-# TODO: --force-append
+#TODO: enable chunked import for append operations
 
 def main():
 	import argparse, time, re
+
+	if r.protobuf_implementation != 'cpp':
+		print('# Info: you might want to install the native C++ ProtocolBuffers compiler for better performance.')
+		print('# For more information: http://www.rethinkdb.com/docs/driver-performance/')
 
 	parser = argparse.ArgumentParser(description='Load some VCF files.')
 
@@ -29,11 +39,16 @@ def main():
 		help='A VCF file.')
 
 	parser.add_argument('--append', action='store_true',
-		help='Add the samples to a collection that might already have items inside. (is slower than adding items to a new collection)')
+		help='Add the samples to a collection that might already have items inside (is slower than adding items to a new collection).')
 
 	parser.add_argument('--hide-loading', action='store_true',
 		help='Disables showing of loading percentage completion, useful to remove clutter when logging stdout.')
 
+	parser.add_argument('--chunk-size', default=1, type=int,
+		help='Select how many records to insert into RethinkDB at a time when doing the initial import. Higher values improve speed at the expense of memory usage. Defaults to single-record inserts.')
+	
+	parser.add_argument('--hard-durability', action='store_true',
+		help='When specified, the database waits for the data to be flushed to disk before aknowledging the operation. Makes the import operations much slower but safer and ensures low memory usage.')
 
 	args = parser.parse_args()
 
@@ -46,43 +61,44 @@ def main():
 		"Names starting with double underscores (__) are reserved for internal usage, aborting."
 	assert len(args.vcf_filenames) == len(set(args.vcf_filenames)), \
 		"You are trying to import the same VCF file twice, aborting."
+	assert args.chunk_size > 0,\
+		"Invalid value for --chunk-size."
 	####################
 
 	# Connect to RethinkDB
 	db_connection = r.connect(host=args.host, port=args.port)
 
-	### Db state check ###
-	check_db_status(db_connection, args.db)
-	######################
+	### Check DB state and init if necessary ###
+	check_and_init_db(db_connection, args.db)
+	############################################
 
 	### Collection state check ###
 	if not args.append:
-		metadata = r.table('__METADATA__').get(args.collection).run(db_connection)
-		assert args.collection not in r.table_list().run(db_connection) and metadata is None, \
+		assert is_collection_new(db_connection, args.collection), \
 			"This collection already exists but you didn't specify the `--append` flag, aborting."
-		#assert metadata.get('doing_init') is None and metadata.get('appending_filenames') is None, \
-		#	"There either is another pending job or the last job failed and left the collection in an inconsistent state, aborting. Use vcf-admin to perform sanity checks."
-		#	"There is already a pending job on this collection. It might be a legitimate operation " +\
-		#	"still running or the collection might have been left in an inconsistent state. Add the flag `--force-append` to perform concurrent imports, otherwise use vcf_admin to perform sanity checks."
 	##############################
 
 	# Perform the actual import:
 	start_time = time.time()
 	if not args.append:
-		quick_load(db_connection, args.collection, args.vcf_filenames, hide_loading=args.hide_loading)
+		quick_load(db_connection, args.collection, args.vcf_filenames, hide_loading=args.hide_loading, chunk_size=args.chunk_size, hard_durability=args.hard_durability)
 	else:
-		append_load(db_connection, args.collection, args.vcf_filenames, hide_loading=args.hide_loading)
+		append_load(db_connection, args.collection, args.vcf_filenames, hide_loading=args.hide_loading, chunk_size=args.chunk_size, hard_durability=args.hard_durability)
 	stop_time = time.time()
 
-	print('Loaded all records in', stop_time - start_time, 'seconds.')
+	print('Loaded all records in', int(stop_time - start_time), 'seconds.')
 
 
-
+def is_collection_new(db, collection):
+	metadata r.table('__METADATA__').get(args.collection).run(db_connection)
+	table_list = r.table_list().run(db_connection)
+	return metadata is None and collection not in table_list
 
 
 def merge_records(multirecord, vcf_filenames, sample_names):
 	"""Performs the merging operations required to store multiple (corresponding) 
-	rows of different VCF files as a single object/document into the DBMS."""
+	rows of different VCF files as a single object/document into the DBMS.
+	Basically it's the glue between the parsers and the DB."""
 
 	assert all(multirecord[0][1].REF == record.REF for _, record in multirecord ), \
 		"Found mismatched REF for #CHROM: {}, POS: {}, aborting. All samples in the same collection must share the same reference genome.".format(multirecord[0][1].CHROM, multirecord[0][1].POS)
@@ -101,7 +117,7 @@ def merge_records(multirecord, vcf_filenames, sample_names):
 		for sample in record.samples:
 			if 'GT' in sample:
 				alleles = re.split(r'([|/])', sample['GT'])
-				sample['GT'] = [x if x in "|/." else record.ALT[int(x)] for x in alleles]
+				sample['GT'] = list(x if x in "|/." else record.ALT[int(x)] for x in alleles)
 			
 		IDs[vcf_filenames[i]] = record.ID
 		QUALs[vcf_filenames[i]] = record.QUAL
@@ -142,13 +158,20 @@ def init_parsers(vcf_filenames):
 
 
 
-def quick_load(db, collection, vcf_filenames, hide_loading=False):
+def quick_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=1, hard_durability=False):
 	"""Performs the loading operations for a new collection."""
 
-	headers, samples, parsers, filestreams = init_parsers(vcf_filenames)
+	# Prepare the parameter for insert queries:
+	durability = 'hard' if hard_durability else 'soft'
 
-	# get filesize for every stream, to print completion percentage.
-	total_filesize = sum([os.path.getsize(vcf) for vcf in vcf_filenames])/100.0
+	# Load parsers:
+	headers, samples, parsers, filestreams = init_parsers(vcf_filenames)
+	# I want the original filestreams, not the 'fake' ones offered by gzip
+	filestreams = [f.fileobj if f.name.endswith('.gz') else f for f in filestreams]
+
+	# Get filesize for every stream, used to print completion percentage and speed.
+	total_filesize = sum([os.path.getsize(vcf) for vcf in vcf_filenames])
+	total_filesize_as_percentage = total_filesize/100
 
 	## STORE METADATA ##
 	collection_info = {
@@ -160,22 +183,76 @@ def quick_load(db, collection, vcf_filenames, hide_loading=False):
 
 	r.table('__METADATA__').insert(collection_info).run(db)
 
-	## STORE ROWS ##
+	# Create the new table required to store the collection:
 	r.table_create(collection).run(db)
 
 
-	for multirecord in parsers:
-		r.table(collection).insert(merge_records(multirecord, vcf_filenames, samples), durability='soft').run(db)
-		if not hide_loading:
-			print('\rLoading: {0:.2f}%'.format(sum([f.fileobj.tell() if f.name.endswith('.gz') else f.tell() for f in filestreams])/total_filesize), end='')
-			sys.stdout.flush()
+	## STORE ROWS ##
+
+	# Timers for completion percentage:
+	last_iter = start_time = time.time()
+
+	if chunk_size == 1:
+		# No need to buffer chunks!
+		iteration_counter = 0
+		for multirecord in parsers:
+			r.table(collection).insert(merge_records(multirecord, vcf_filenames, samples), durability=durability).run(db)
+			
+			if not hide_loading:
+				# Might be a good idea to slow down a little the completion percentage refresh rate.
+				iteration_counter += 1
+				if iteration_counter == 20:
+					pos = sum([f.tell() for f in filestreams])
+					print('\rLoading: {0:.2f}%'.format(pos/total_filesize_as_percentage), end=' ')
+					now = time.time()
+					print('@ {} records/second'.format(int(20/(now-last_iter))), end=' ')
+					print('- ETA: {}'.format(datetime.timedelta(seconds=int((now - start_time) * (total_filesize - pos) / pos))), end=' ')
+					sys.stdout.flush()
+					iteration_counter = 0
+					last_iter = now
+
+
+	else: # chunk_size > 1
+		chunk = tuple(islice(parsers, chunk_size))
+		while chunk:
+			r.table(collection).insert(chunk, durability=durability).run(db)
+			chunk = tuple(islice(parsers, chunk_size))
+
+			if not hide_loading:
+				pos = sum([f.tell() for f in filestreams])
+				print('\rLoading: {0:.2f}%'.format(pos/total_filesize_as_percentage), end=' ')
+				now = time.time()
+				print('@ {} records/second'.format(int(chunk_size/(now-last_iter))), end=' ')
+				print('- ETA: {}'.format(datetime.timedelta(seconds=int((now - start_time) * (total_filesize - pos) / pos))), end=' ')
+				sys.stdout.flush()
+				last_iter = now
+
+
+		# for multirecord in parsers:
+		# 	chunk.append(merge_records(multirecord, vcf_filenames, samples))
+		# 	if len(chunk) == chunk_size:
+		# 		r.table(collection).insert(chunk, durability=durability).run(db)
+		# 		if not hide_loading:
+		# 			pos = sum([f.fileobj.tell() if f.name.endswith('.gz') else f.tell() for f in filestreams])
+		# 			print('\rLoading: {0:.2f}%'.format(pos/total_filesize_as_percentage), end=' ')
+		# 			now = time.time()
+		# 			print('@ {} records/second'.format(int(chunk_size/(now-last_iter))), end=' ')
+		# 			print('- ETA: {}'.format(datetime.timedelta(seconds=int((now - start_time) * (total_filesize - pos) / pos))), end=' ')
+		# 			sys.stdout.flush()
+		# 			last_iter = now
+		# 		acc = []
+
+	if hide_loading:
+		print('Completed loading, waiting for all inserts to be flushed on disk.') 
+	else:
+		print('\rCompleted loading, updating metadata.                          ') 
+		# whitespace hopefully hides artifacts from the previous prints
 
 	# flag insert job as complete once data is written to disk
 	r.table(collection).sync().run(db)
+	print('OK, updating metadata.')
 	r.table('__METADATA__').get(collection).replace(lambda x: x.without('doing_init')).run(db)
-	print(' - done.')
 	
-
 
 def append_load(db, collection, vcf_filenames, hide_loading=False):
 	"""Performs the loading operations for a collection that already contains samples."""
@@ -257,9 +334,9 @@ def append_load(db, collection, vcf_filenames, hide_loading=False):
 
 
 
-def check_db_status(db_connection, db_name):
+def check_and_init_db(db_connection, db_name):
 	"""Checks if the db exists and has a consistent state. 
-	If the db doesn't exits, creates it."""
+	If the db doesn't exits, creates it and performs the init operations."""
 
 	if db_name == 'VCF':
 		print('Defaulting to `VCF` database.')

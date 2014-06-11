@@ -392,11 +392,16 @@ def parse_defined_field(field, definition):
 	# 	return True
 
 	if field == '.':
-		return None
+		return ['.']
 
 	if definition[0] == '1':
+
 		if definition[1] in ('String', 'Character'):
 			return field
+
+		if field == '.':
+			return None
+
 		if definition[1] == 'Float':
 			return float(field)
 		return int(field)
@@ -405,9 +410,9 @@ def parse_defined_field(field, definition):
 		return field.split(',')
 
 	if definition[1] == 'Float':
-		return list(float(x) for x in field.split(','))
+		return list(None if x == '.' else float(x) for x in field.split(','))
 	
-	return list(int(x) for x in field.split(','))
+	return list(None if x == '.' else int(x) for x in field.split(','))
 
 
 #
