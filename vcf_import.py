@@ -182,6 +182,12 @@ def append_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=20
 			"This collection either has still to complete another import operation or has been left in an inconsistent state, aborting. Use vcf_admin to perform consistency checks. "
 	#########################
 
+	# Load parsers:
+	headers, samples, parsers, filestreams = init_parsers(vcf_filenames)
+	# I want the original filestreams, not the 'fake' ones offered by gzip
+	filestreams = [f.fileobj if f.name.endswith('.gz') else f for f in filestreams]
+
+
 	# check if there are collisions between new samples and the samples already loaded
 	new_samples = set([sample for sublist in samples for sample in sublist])
 	old_samples = set(metadata['samples'].keys())
@@ -201,11 +207,6 @@ def append_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=20
 		print('$ ./vcf_import.py mycollection mytastycows/samples.vcf mytastiercows/samples.vcf')
 		raise ValueError
 
-
-	# Load parsers:
-	headers, samples, parsers, filestreams = init_parsers(vcf_filenames)
-	# I want the original filestreams, not the 'fake' ones offered by gzip
-	filestreams = [f.fileobj if f.name.endswith('.gz') else f for f in filestreams]
 
 	# Get filesize for every stream, used to print completion percentage and speed.
 	total_filesize = float(sum([os.path.getsize(vcf) for vcf in vcf_filenames]))
