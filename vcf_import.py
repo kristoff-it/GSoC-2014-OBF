@@ -15,6 +15,7 @@ except:
 # TODO: enable chunked import for append operations
 # TODO: allow concurrent --append operations
 # TODO: fix edge case for quick imports
+# TODO: add --ignore-bad-info and --drop-bad-records switches
 
 def main():
 	import argparse
@@ -169,7 +170,7 @@ def append_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=20
 	metadata = r.table('__METADATA__').get(collection).run(db)
 	table_list = r.table_list().run(db)
 
-	assert collection in table_list == metadata is not None, \
+	assert collection in table_list and metadata is not None, \
 		"This collection is in a spurious state. Use vcf_admin.py to perform sanity checks."
 
 	if metadata is None:
