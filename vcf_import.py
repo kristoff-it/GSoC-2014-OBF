@@ -261,7 +261,7 @@ def check_and_init_db(db_connection, db_name):
 	"""Checks if the db exists and has a consistent state. 
 	If the db doesn't exits, creates it and performs the init operations."""
 
-	assert re.match(r'^[a-zA-Z0-9_]+$', db_connection) is not None, \
+	assert re.match(r'^[a-zA-Z0-9_]+$', db_name) is not None, \
 		"You can only use alphanumeric characters and underscores for the database name, aborting."
 
 	if db_name == 'VCF':
