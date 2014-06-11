@@ -213,10 +213,10 @@ def quick_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=1, 
 
 
 	else: # chunk_size > 1
-		chunk = tuple(merge_records(multirecord, vcf_filenames, samples) for multirecord in itertools.islice(parsers, chunk_size))
+		chunk = list(merge_records(multirecord, vcf_filenames, samples) for multirecord in itertools.islice(parsers, chunk_size))
 		while chunk:
 			r.table(collection).insert(chunk, durability=durability).run(db)
-			chunk = tuple(merge_records(multirecord, vcf_filenames, samples) for multirecord in itertools.islice(parsers, chunk_size))
+			chunk = list(merge_records(multirecord, vcf_filenames, samples) for multirecord in itertools.islice(parsers, chunk_size))
 
 			if not hide_loading:
 				pos = sum([f.tell() for f in filestreams])
