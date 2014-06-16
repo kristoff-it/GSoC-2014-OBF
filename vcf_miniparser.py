@@ -2,6 +2,10 @@ from __future__ import print_function
 from collections import namedtuple
 
 
+# TODO: remove state from module
+# TODO: better error control
+
+
 ## DATA STRUCTURES ##
 Record = namedtuple("Record", "CHROM POS ID REF ALT QUAL FILTER INFO samples")
 Headers = namedtuple("Headers", "fileformat infos formats filters alts extra")
@@ -308,7 +312,7 @@ def parse_info_field(field, header_infos, ignore_bad_info):
 				if ignore_bad_info:
 					if key not in bad_info_fields:
 						bad_info_fields[key] = True
-						print('Warning: field `{}` does not respect its type, dropping it. Will not notify ulterior errors with the same field ID.'.format(kv))
+						print('Warning: field `{}` does not respect its type, dropping it. This is to prevent inconsistent results from queries. Will not notify ulterior errors with the same field ID.'.format(kv))
 					continue
 				raise BadInfoField(kv)
 
@@ -322,7 +326,7 @@ def parse_info_field(field, header_infos, ignore_bad_info):
 				if ignore_bad_info:
 					if key not in bad_info_fields:
 						bad_info_fields[key] = True
-						print('Warning: field `{}` does not respect its type, dropping it. Will not notify ulterior errors with the same field ID.'.format(kv))
+						print('Warning: field `{}` does not respect its type, dropping it. This is to prevent inconsistent results from queries. Will not notify ulterior errors with the same field ID.'.format(kv))
 					continue
 				raise BadInfoField(kv)
 
