@@ -16,6 +16,7 @@ except:
 # TODO: allow concurrent --append operations
 # TODO: fix edge case for quick imports
 # TODO: add --ignore-bad-info and --drop-bad-records switches
+# TODO: refined exceptions
 
 def main():
 	import argparse
@@ -52,6 +53,9 @@ def main():
 	
 	parser.add_argument('--hard-durability', action='store_true',
 		help='When specified, the database waits for the data to be flushed to disk before aknowledging the operation. Makes the import operations much slower but safer and ensures low memory usage.')
+	
+	parser.add_argument('--ignore-bad-info', action='store_true',
+		help='When specified, info fields that fail to respect their field definition (for example by having a string value inside an `Integer` field) are dropped with a warning. Other INFO fields from the same record are preserved if well formed.')
 
 	args = parser.parse_args()
 
@@ -68,10 +72,24 @@ def main():
 
 	# Perform the import:
 	start_time = time.time()
-	if not args.append:
-		quick_load(db_connection, args.collection, args.vcf_filenames, hide_loading=args.hide_loading, chunk_size=args.chunk_size, hard_durability=args.hard_durability)
-	else:
-		append_load(db_connection, args.collection, args.vcf_filenames, hide_loading=args.hide_loading, chunk_size=args.chunk_size, hard_durability=args.hard_durability)
+	try:
+		if not args.append:
+			quick_load(db_connection, args.collection, args.vcf_filenames, 
+						hide_loading=args.hide_loading, 
+						chunk_size=args.chunk_size, 
+						hard_durability=args.hard_durability,
+						ignore_bad_info=args.ignore_bad_info)
+		else:
+			append_load(db_connection, args.collection, args.vcf_filenames, 
+						hide_loading=args.hide_loading, 
+						chunk_size=args.chunk_size, 
+						hard_durability=args.hard_durability,
+						ignore_bad_info=args.ignore_bad_info)
+	except ValueError: 
+		# Hide the exception stacktrace from command line output. 
+		# In the case of ValueError explanations have already 
+		# been printed to stdout.
+		exit(1)
 	stop_time = time.time()
 
 	print('Loaded all records in', int(stop_time - start_time), 'seconds.')
@@ -90,13 +108,13 @@ def check_parameters(collection, vcf_filenames, chunk_size):
 
 
 
-def quick_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=20, hard_durability=False):
+def quick_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=20, hard_durability=False, ignore_bad_info=False):
 	"""Performs the loading operations for a new collection."""
 
 	# Check parameters:
 	check_parameters(collection, vcf_filenames, chunk_size)
 
-	# Prepare the `durability` parameter for insert queries:
+	# Prepare the `durability` parameter for db queries:
 	durability = 'hard' if hard_durability else 'soft'
 
 	### CONSISTENCY CHECKS ###
@@ -107,7 +125,7 @@ def quick_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=20,
 	##########################
 
 	# Load parsers:
-	headers, samples, parsers, filestreams = init_parsers(vcf_filenames)
+	headers, samples, parsers, filestreams = init_parsers(vcf_filenames, ignore_bad_info=ignore_bad_info)
 	# I want the original filestreams, not the 'fake' ones offered by gzip
 	filestreams = [f.fileobj if f.name.endswith('.gz') else f for f in filestreams]
 
@@ -157,13 +175,13 @@ def quick_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=20,
 	r.table('__METADATA__').get(collection).replace(lambda x: x.without('doing_init')).run(db)
 	
 
-def append_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=20, hard_durability=False):
+def append_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=20, hard_durability=False, ignore_bad_info=False):
 	"""Performs the loading operations for a collection that already contains samples."""
 	
 	# Check parameters:
 	check_parameters(collection, vcf_filenames, chunk_size)
 
-	# Prepare the parameter for insert queries:
+	# Prepare the parameter for db queries:
 	durability = 'hard' if hard_durability else 'soft'
 
 	### CONSISTENCY CHECKS ###
@@ -175,15 +193,15 @@ def append_load(db, collection, vcf_filenames, hide_loading=False, chunk_size=20
 
 	if metadata is None:
 		print('This is a new collection, switching to direct loading method.')
-		return quick_load(db, collection, vcf_filenames, hide_loading=hide_loading)
+		return quick_load(db, collection, vcf_filenames, hide_loading=hide_loading, chunk_size=chunk_size, hard_durability=hard_durability, ignore_bad_info=ignore_bad_info)
 	else:
 		# must check if the collection has finished its pending operations
 		assert not metadata.get('doing_init') and not metadata.get('appending_filenames'), \
-			"This collection either has still to complete another import operation or has been left in an inconsistent state, aborting. Use vcf_admin to perform consistency checks. "
+			"This collection either has still to complete another import operation or has been left in an inconsistent state, aborting. Use vcf_admin to perform consistency checks."
 	#########################
 
 	# Load parsers:
-	headers, samples, parsers, filestreams = init_parsers(vcf_filenames)
+	headers, samples, parsers, filestreams = init_parsers(vcf_filenames, ignore_bad_info=ignore_bad_info)
 	# I want the original filestreams, not the 'fake' ones offered by gzip
 	filestreams = [f.fileobj if f.name.endswith('.gz') else f for f in filestreams]
 
@@ -298,7 +316,7 @@ def check_and_init_db(db_connection, db_name):
 		"The database named `{}` does not belong to this application. Use vcf_init.py to initialize a new database.".format(db_name)
 
 
-def init_parsers(vcf_filenames):
+def init_parsers(vcf_filenames, ignore_bad_info=False):
 	"""Opens the filestreams and instantiates each corresponding parser."""
 
 	filestreams = []
@@ -307,7 +325,7 @@ def init_parsers(vcf_filenames):
 			filestreams.append(gzip.open(filename, 'r'))
 		else:
 			filestreams.append(open(filename, 'r'))
-	headers, samples, parsers = parse_vcf_together(filestreams)
+	headers, samples, parsers = parse_vcf_together(filestreams, ignore_bad_info=ignore_bad_info)
 	
 	flattened_samples = tuple([sample for sublist in samples for sample in sublist])
 	assert len(flattened_samples) == len(set(flattened_samples)), \

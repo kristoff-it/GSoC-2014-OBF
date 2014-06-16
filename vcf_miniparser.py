@@ -1,3 +1,4 @@
+from __future__ import print_function
 from collections import namedtuple
 
 
@@ -48,7 +49,7 @@ standard_format_fields = {}
 # VCF
 #
 
-def parse_vcf(filestream, ignore_bad_infos=False, drop_bad_records=False):
+def parse_vcf(filestream, ignore_bad_info=False, drop_bad_records=False):
 	"""Immediately parses the headers, the sample names and returns
 	them along with a generator to parse the records. You can optionally
 	silently drop bad records, only drop bad info fields or skip the 
@@ -68,7 +69,7 @@ def parse_vcf(filestream, ignore_bad_infos=False, drop_bad_records=False):
 	[{'GT': '0|0', 'GQ': 35, 'DP': 4}, ...]"""
 
 	headers, samples = parse_headers(filestream)
-	return headers, samples, parse_records(filestream, headers, ignore_bad_infos, drop_bad_records)
+	return headers, samples, parse_records(filestream, headers, ignore_bad_info, drop_bad_records)
 
 
 
@@ -252,10 +253,10 @@ def parse_header_line(line, headers):
 # RECORDS
 #
 
-def parse_records(filestream, headers, ignore_bad_infos=False, drop_bad_records=False):
+def parse_records(filestream, headers, ignore_bad_info=False, drop_bad_records=False):
 	for line in filestream:
 		try:
-			yield parse_record_line(line, headers, ignore_bad_infos)
+			yield parse_record_line(line, headers, ignore_bad_info)
 		except ValueError:
 			if drop_bad_records:
 				continue
@@ -264,7 +265,7 @@ def parse_records(filestream, headers, ignore_bad_infos=False, drop_bad_records=
 
 
 
-def parse_record_line(line, headers, ignore_bad_infos):
+def parse_record_line(line, headers, ignore_bad_info):
 	fields = line.split('\t')
 
 	return Record(  
@@ -275,13 +276,13 @@ def parse_record_line(line, headers, ignore_bad_infos):
 					ALT=fields[4].split(','), 
 					QUAL=float(fields[5]),
 					FILTER=fields[6], 
-					INFO=parse_info_field(fields[7], headers.infos, ignore_bad_infos),
+					INFO=parse_info_field(fields[7], headers.infos, ignore_bad_info),
 					samples=parse_genotype_fields(fields[8], fields[9:], headers.formats)
 				)
 
 
 
-def parse_info_field(field, header_infos, ignore_bad_infos):
+def parse_info_field(field, header_infos, ignore_bad_info):
 	parsed_fields = {}
 
 	if field == '.':
@@ -305,8 +306,9 @@ def parse_info_field(field, header_infos, ignore_bad_infos):
 				parsed_fields[key] = parsed_value
 			except ValueError:
 				if ignore_bad_infos:
+					print('Warning: unable to parse field `{}`'.format(kv))
 					continue
-				raise BadInfoField(field)
+				raise BadInfoField(kv)
 
 		# Is it defined in the headers?
 		field_definition = header_infos.get(key, None)
@@ -316,8 +318,9 @@ def parse_info_field(field, header_infos, ignore_bad_infos):
 				parsed_fields[key] = parsed_value
 			except ValueError:
 				if ignore_bad_infos:
+					print('Warning: unable to parse field `{}`'.format(kv))
 					continue
-				raise BadInfoField(field)
+				raise BadInfoField(kv)
 
 		# Undefined field
 		if key not in inferred_infos:
@@ -420,16 +423,16 @@ def parse_defined_field(field, definition):
 #
 
 
-def parse_vcf_together(filestreams):
+def parse_vcf_together(filestreams, ignore_bad_info=False):
 	headers, samples = parse_headers_together(filestreams)
-	return headers, samples, parse_records_together(zip(filestreams, headers))
+	return headers, samples, parse_records_together(zip(filestreams, headers), ignore_bad_info=ignore_bad_info)
 
 def parse_headers_together(filestreams):
 	return zip(*(parse_headers(f) for f in filestreams))
 	
 
-def parse_records_together(fs_headers_touple_list):
-	parsers = tuple(parse_records(fs, head) for fs, head in fs_headers_touple_list)
+def parse_records_together(fs_headers_touple_list, ignore_bad_info=False):
+	parsers = tuple(parse_records(fs, head, ignore_bad_info=ignore_bad_info) for fs, head in fs_headers_touple_list)
 
 	## RECORDS ##
 	record_buffer = list(next(p, None) for p in parsers)
