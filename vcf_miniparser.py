@@ -305,7 +305,7 @@ def parse_info_field(field, header_infos, ignore_bad_info):
 				parsed_value = parse_defined_field(value, field_definition)
 				parsed_fields[key] = parsed_value
 			except ValueError:
-				if ignore_bad_infos:
+				if ignore_bad_info:
 					print('Warning: unable to parse field `{}`'.format(kv))
 					continue
 				raise BadInfoField(kv)
@@ -317,7 +317,7 @@ def parse_info_field(field, header_infos, ignore_bad_info):
 				parsed_value = parse_defined_field(value, field_definition)
 				parsed_fields[key] = parsed_value
 			except ValueError:
-				if ignore_bad_infos:
+				if ignore_bad_info:
 					print('Warning: unable to parse field `{}`'.format(kv))
 					continue
 				raise BadInfoField(kv)
