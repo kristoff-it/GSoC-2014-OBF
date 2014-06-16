@@ -189,7 +189,6 @@ def main():
 				print('Name does not match, aborting.')
 				exit(1)
 
-
 		try:
 			result = do_fix(db_connection, args.options[0])
 		except BadCollection as e:
