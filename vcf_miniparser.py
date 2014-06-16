@@ -281,7 +281,7 @@ def parse_record_line(line, headers, ignore_bad_info):
 				)
 
 
-
+bad_info_fields = {}
 def parse_info_field(field, header_infos, ignore_bad_info):
 	parsed_fields = {}
 
@@ -306,7 +306,9 @@ def parse_info_field(field, header_infos, ignore_bad_info):
 				parsed_fields[key] = parsed_value
 			except ValueError:
 				if ignore_bad_info:
-					print('Warning: unable to parse field `{}`'.format(kv))
+					if key not in bad_info_fields:
+						bad_info_fields[key] = True
+						print('Warning: field `{}` does not respect its type, dropping it. Will not notify ulterior errors with the same field ID.'.format(kv))
 					continue
 				raise BadInfoField(kv)
 
@@ -318,7 +320,9 @@ def parse_info_field(field, header_infos, ignore_bad_info):
 				parsed_fields[key] = parsed_value
 			except ValueError:
 				if ignore_bad_info:
-					print('Warning: unable to parse field `{}`'.format(kv))
+					if key not in bad_info_fields:
+						bad_info_fields[key] = True
+						print('Warning: field `{}` does not respect its type, dropping it. Will not notify ulterior errors with the same field ID.'.format(kv))
 					continue
 				raise BadInfoField(kv)
 
