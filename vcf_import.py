@@ -37,7 +37,7 @@ def main():
 		help='Database name where the VCF data is stored. Defaults to `VCF`.')
 
 	parser.add_argument('collection', 
-		help='The name of the collection where the VCF files should be stored.')
+		help='Name of the collection where the VCF files should be stored.')
 
 	parser.add_argument('vcf_filenames', metavar='file', nargs='+',
 		help='A VCF file.')

@@ -35,7 +35,7 @@ def main():
 		help='The operation that must be performed.')
 	
 	parser.add_argument('options', nargs='*',  
-		help='The options for the selected command. Use the help command to know more about each command.')
+		help='Options for the selected command. Use the help command to know more about each command.')
 	
 	parser.add_argument('-f', action='store_true',
 		help='Execute a fix or delete command without requiring a confirmation.')
