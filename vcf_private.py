@@ -101,28 +101,41 @@ def main():
 			print r.table(args.collection).index_list().run(db_connection)
 		except:
 			raise BadCollection('collection {} does not exist.'.format(args.collection))
-
+		exit(1)
 
 	if args.command == 'create':
+
+
+		for x in list(r.table(args.collection).map( 
+			lambda record: record['samples'].keys().group(
+				lambda sample: record['samples'].get_field(sample)['GT']).ungroup()['reduction']
+			).run(db_connection)):
+			print ''
+			for y in x:
+				print ':::', y
+			print ''
+
 		print r.table(args.collection).index_create(args.name, 
 			lambda record: record['samples'].keys().group(
 				lambda sample: record['samples'].get_field(sample)['GT']).ungroup()['reduction']
 			, multi=True).run(db_connection)
 
+		exit(0)
 
-		# for x in list(r.table(args.collection).map( 
-		# 	lambda record: record['samples'].keys().group(
-		# 		lambda sample: record['samples'].get_field(sample)['GT']).ungroup()['reduction']
-		# 	).run(db_connection)):
-		# 	print ''
-		# 	for y in x:
-		# 		print y
-		# 	print ''
+
+
 
 
 	# if command == 'delete':
 
-	# if command == 'get':
+	if args.command == 'get':
+		import json
+
+		for x in r.table(args.collection).get_all(args.sample, index=args.name).run(db_connection):
+			print ''
+			print x['id'], ':'
+			print json.dumps(x['samples'], sort_keys=True, indent=2)
+			print ''
 
 
 def check_and_select_db(connection, db_name):

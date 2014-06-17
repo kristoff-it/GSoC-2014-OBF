@@ -389,7 +389,6 @@ def do_delete(db, collection):
 
 
 def check_and_select_db(connection, db_name):
-
 	if not re.match(r'^[a-zA-Z0-9_]+$', db_name):
 		raise BadDatabase('you can only use alphanumeric characters and underscores for the database name')
 
