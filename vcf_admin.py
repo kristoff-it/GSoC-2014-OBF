@@ -7,7 +7,6 @@ try:
 except:
 	print('Unable to import the RethinkDB python module.')
 	print('To install: pip install rethinkdb')
-	print('(You might also want to consider installing the native C++ ProtocolBuffers compiler for better performance)')
 	print('\n')
 	raise ImportError
 

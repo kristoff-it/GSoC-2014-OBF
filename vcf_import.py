@@ -8,7 +8,6 @@ try:
 except:
 	print('Unable to import the RethinkDB python module.')
 	print('To install: pip install rethinkdb')
-	print('(You might also want to consider installing the native C++ ProtocolBuffers compiler for better performance)')
 	print('\n')
 	raise ImportError
 
@@ -21,9 +20,6 @@ except:
 def main():
 	import argparse
 
-	if r.protobuf_implementation != 'cpp':
-		print('# Info: you might want to install the native C++ ProtocolBuffers compiler for better performance.')
-		print('# For more information: http://www.rethinkdb.com/docs/driver-performance/')
 
 	parser = argparse.ArgumentParser(description='Load some VCF files.')
 

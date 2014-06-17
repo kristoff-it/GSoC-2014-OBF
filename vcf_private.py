@@ -6,7 +6,6 @@ try:
 except:
 	print('Unable to import the RethinkDB python module.')
 	print('To install: pip install rethinkdb')
-	print('(You might also want to consider installing the native C++ ProtocolBuffers compiler for better performance)')
 	print('\n')
 	raise ImportError
 
@@ -18,10 +17,6 @@ class BadCollection(Exception):
 
 def main():
 	import argparse, time, re
-
-	if r.protobuf_implementation != 'cpp':
-		print('# Info: you might want to install the native C++ ProtocolBuffers compiler for better performance.')
-		print('# For more information, see: http://www.rethinkdb.com/docs/driver-performance/')
 
 	parser = argparse.ArgumentParser(description='Manage the VCF database.')
 
@@ -126,7 +121,8 @@ def main():
 
 
 
-	# if command == 'delete':
+	if args.command == 'delete':
+		r.table(args.collection).index_drop
 
 	if args.command == 'get':
 		import json
