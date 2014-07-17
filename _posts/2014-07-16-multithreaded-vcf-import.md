@@ -1,6 +1,7 @@
 ---
 layout: post_page
 title: Multithreaded vcf-import 
+---
 
 I'm almost done writing the import script with multithreading support.
 It actually feels weird to be able to have properly parallel concurrency (no GIL? is this real life?)
