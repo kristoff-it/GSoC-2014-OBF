@@ -9,7 +9,8 @@ It actually feels weird to be able to have properly parallel concurrency (no GIL
 Anyway, this allows to have a somewhat straigthforward processing pipeline with queues as syncrhonization mechanism.
 
 Sketch of its structure:
-```
+
+```ruby
 # P1 P2 PN     # parser threads
 #  |  |  | 
 # b1 b2 bN     # parser buffers
