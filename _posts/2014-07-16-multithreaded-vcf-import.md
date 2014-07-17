@@ -33,7 +33,7 @@ To better describe each point:
 
 * Each parser has its own thread and queue (one for each VCF file that is being imported).
 * A single thread performs alignments (groups records by CHROM:POS) and stores the result into another queue. This allows merge operations to be performed concurrently.
-* Multiple threads perform the merging operations (which seems to be the heaviest part of the job) and store the result into another queue
+* Multiple threads perform the merging operations (which seems to be the heaviest part of the job) and store the result into another queue. The merge is necessary to have a single document per position.
 * Multiple threads perform the insert/update operations of merged records via MongoDB's `bulk_insert`.
 
 This is pretty neat IMO.
