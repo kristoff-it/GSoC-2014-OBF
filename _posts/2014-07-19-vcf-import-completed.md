@@ -6,7 +6,8 @@ The import script is now complete.
 All kinds of import operations are supported and errors are handled nicely.
 
 Usage is as simple as possible:
-```bash
+
+```sh
 $ jruby vcf-import.rb collectionName file1.vcf file2.vcf ...
 ``` 
 
