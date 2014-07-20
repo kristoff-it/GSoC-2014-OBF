@@ -16,7 +16,7 @@ Other switches can be used to tweak buffers' sizes and the number of processing 
 The script shows the total number of imported records, current import speed and the saturation level of each queue (which is both interesting to look at and informative about possible adjustments that would widen a possible bottleneck). Unfortunately, a completion percentage and/or an ETA timer is not available (for now, at least) because the HTSJDK parser hoards the `InputStream` generated from the VCF file pathname and apparently being able to tell how many seconds/hours/eons will take for a parsing operation to complete [[is not considered a top priority]](https://github.com/samtools/htsjdk/issues/63#issuecomment-49464602). It also apparently is considered an internal feature (???).
 
 Well for now I'll leave it at that and come back to it once the rest is done.
-Or maybe I'll be lucky and someone ~with more masochistic tendencies than me~ will have already submitted a patch.
+Or maybe I'll be lucky and someone <del>with more masochistic tendencies than me</del> will have already submitted a patch.
 
 I'm very satisfied about how this script came out.
 The only (quite marginal, I believe) performance improvements that might be applied are:
