@@ -18,7 +18,7 @@ The script shows the total number of imported records, current import speed and 
 Well for now I'll leave it at that and come back to it once the rest is done.
 Or maybe I'll be lucky and someone <del>with more masochistic tendencies than me</del> will have already submitted a patch.
 
-I'm very satisfied about how this script came out.
+I'm very satisfied about how this script came to be.
 The only (quite marginal, I believe) performance improvements that might be applied are:
 
 * Group records in chunks to lower any trashing that might derive from lock contention between multiple threads trying to push/pull items from the same queue.
