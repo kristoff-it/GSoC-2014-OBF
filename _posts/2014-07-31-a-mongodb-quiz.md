@@ -10,6 +10,7 @@ Let's say all documents in your collection have a field that contains an array o
 I wanted to add a `--apply-filters` option to the private-finding script. Just like its counterpart in VCFTools, this switch limits the search only to records that didn't fail any filter (so they either `'PASS'`-ed all filters or no filters where applied at all (`'.'`/`null`)).
 
 For example:
+
 ```ruby
 # This record is bad:
 record1 = {'FILTERs' => ['PASS', 'PASS', nil, 'q50']}
@@ -50,12 +51,15 @@ Some broken examples:
 In case anyone is wondering why I'm not simply doing something like `{'FILTERs' => {'$nin' => < all filter ids >}}` the reason is that it's inefficient both in terms of querying (testing over an arbitrarily long list vs (short-circuit) testing over a 3-elements long list) and building: you can't trust the headers to contain all filter IDs. By specification, while encouraged to do so, you are not required to specify any FILTER/INFO/FORMAT field in the headers so I'd have to make sure to "catch" all the different IDs while importing the VCF files; and then if someone decides to apply new filters on data inside the DB, the query suddenly breaks for no good reason.
 
 So, I guess the suspense at this point is unbearable, what might a correct answer be?
+
 ```ruby
 {'FILTERs' => {'$not' => /^(?!(PASS)|(\.))/}}
 ```
+
 Yes, a friggin negated regex with negative look-aheads. It also works with `null` values because the (undocumented) `$regex` behaviour is that only strings get tested so `null` values can't fail the match.
 
 In my specific case, since I know for sure how many VCF files are inside a collection, I can do something like this:
+
 ```ruby
 {'$and' =>[
 	'FILTERs.0' => {'$in' => ['PASS', '.', nil]},
